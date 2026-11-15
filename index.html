@@ -1,0 +1,351 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Maison">
+<title>Tableau Maison</title>
+<style>
+/* Layout: full-screen photo behind; frosted-glass cards float on the edges, the centre stays clear for the photo */
+:root {
+  --glass: rgba(255, 255, 255, .64);
+  --glass-strong: rgba(255, 255, 255, .82);
+  --field: rgba(255, 255, 255, .75);
+  --ink: #1d1d1f;
+  --ink-2: #6e6e73;
+  --hair: rgba(0, 0, 0, .08);
+  --blue: #007aff;
+  --orange: #ff9500;
+  --red: #ff3b30;
+  --font: -apple-system, "SF Pro Display", "Helvetica Neue", "Segoe UI", Arial, sans-serif;
+  color-scheme: light;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { height: 100%; margin: 0; }
+body {
+  background: #e9eef6; color: var(--ink); font: 17px/1.35 var(--font); letter-spacing: -.01em;
+  -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; overflow: hidden;
+}
+input, select, button { font: inherit; color: inherit; letter-spacing: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 3px solid rgba(0, 122, 255, .5); outline-offset: 2px; }
+
+/* ---------- Fond : photos en fondu enchaîné ---------- */
+.bg { position: fixed; inset: 0; overflow: hidden;
+  background: radial-gradient(circle at 15% 20%, #ffd3a5 0, transparent 45%),
+              radial-gradient(circle at 85% 15%, #a5d8ff 0, transparent 45%),
+              radial-gradient(circle at 70% 85%, #d0bfff 0, transparent 50%),
+              radial-gradient(circle at 20% 90%, #b2f2bb 0, transparent 45%), #f1f3f8; }
+.bg img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity 1.6s ease; }
+.bg img.on { opacity: 1; -webkit-animation: drift 14s ease-out both; animation: drift 14s ease-out both; }
+@-webkit-keyframes drift { from { -webkit-transform: scale(1.08); } to { -webkit-transform: scale(1); } }
+@keyframes drift { from { transform: scale(1.08); } to { transform: scale(1); } }
+/* léger voile en haut à gauche pour que l'heure reste lisible sur n'importe quelle photo */
+.bg::after { content: ""; position: absolute; inset: 0; background: linear-gradient(160deg, rgba(0,0,0,.38) 0, rgba(0,0,0,0) 38%); }
+
+/* ---------- Grille ---------- */
+.app {
+  position: relative; height: 100%; display: grid; gap: 16px;
+  grid-template-columns: 330px 1fr 300px;
+  grid-template-rows: auto auto 1fr;
+  grid-template-areas: "clock . ." "weather . list" "agenda . list";
+  padding: max(22px, env(safe-area-inset-top)) max(22px, env(safe-area-inset-right)) max(22px, env(safe-area-inset-bottom)) max(22px, env(safe-area-inset-left));
+}
+@media (orientation: portrait) {
+  .app { grid-template-columns: 1fr 1fr; grid-template-rows: auto 1fr 44%;
+    grid-template-areas: "clock weather" ". ." "agenda list"; }
+}
+@media (max-width: 600px) {
+  body { overflow: auto; }
+  .app { height: auto; grid-template-columns: 1fr; grid-template-rows: auto;
+    grid-template-areas: "clock" "weather" "agenda" "list"; }
+  .agenda .scroll, .list .scroll { max-height: 50vh; }
+}
+
+.card {
+  background: var(--glass); border-radius: 24px; padding: 18px 20px; min-width: 0; min-height: 0;
+  -webkit-backdrop-filter: saturate(180%) blur(28px); backdrop-filter: saturate(180%) blur(28px);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, .12), inset 0 0 0 1px rgba(255, 255, 255, .5);
+  display: flex; flex-direction: column; gap: 12px;
+}
+.card h2 { margin: 0; font-size: 20px; font-weight: 700; letter-spacing: -.02em; }
+.card header { display: flex; align-items: baseline; gap: 10px; }
+.card header h2 { flex: 1; }
+.count { color: var(--ink-2); font-size: 15px; font-variant-numeric: tabular-nums; }
+.scroll { flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; margin: 0 -6px; padding: 0 6px; }
+.hint { color: var(--ink-2); font-size: 15px; padding: 6px 0; }
+
+/* ---------- Heure ---------- */
+.clock { grid-area: clock; color: #fff; text-shadow: 0 2px 16px rgba(0,0,0,.25); }
+.clock .time { font-size: 92px; font-weight: 200; line-height: .95; letter-spacing: -.04em; font-variant-numeric: tabular-nums; }
+.clock .date { font-size: 21px; font-weight: 500; opacity: .92; padding-left: 4px; }
+.clock .date::first-letter { text-transform: uppercase; }
+
+/* ---------- Météo ---------- */
+.weather { grid-area: weather; }
+.now { display: flex; align-items: center; gap: 14px; }
+.now .ico { font-size: 50px; line-height: 1; }
+.now .temp { font-size: 52px; font-weight: 300; line-height: 1; letter-spacing: -.03em; }
+.now .lbl { color: var(--ink-2); font-size: 15px; }
+.city { margin-left: auto; align-self: flex-start; background: none; border: 0; padding: 0; color: var(--blue); font-size: 15px; font-weight: 500; }
+.days { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; text-align: center; }
+.days > div { background: rgba(255, 255, 255, .55); border-radius: 16px; padding: 8px 4px; font-size: 14px; }
+.days .d { color: var(--ink-2); font-weight: 600; text-transform: capitalize; }
+.days b { display: block; font-size: 26px; font-weight: 400; line-height: 1.3; }
+.days .rain { color: var(--blue); font-size: 12px; font-weight: 600; }
+
+/* ---------- Rappels ---------- */
+.agenda { grid-area: agenda; }
+.ev { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--hair); }
+.ev:last-child { border-bottom: 0; }
+.ev .when { flex: 0 0 auto; min-width: 66px; text-align: center; padding: 4px 8px; border-radius: 10px; background: rgba(255,255,255,.6); font-size: 13px; font-weight: 600; color: var(--ink-2); text-transform: capitalize; }
+.ev.today .when { background: var(--orange); color: #fff; }
+.ev.tomorrow .when { background: var(--blue); color: #fff; }
+.ev .what { flex: 1; min-width: 0; font-weight: 500; }
+.ev .rep { font-size: 13px; color: var(--ink-2); font-weight: 400; }
+.x { background: none; border: 0; color: #aeaeb2; font-size: 24px; line-height: 1; padding: 2px 4px; }
+.x:active { color: var(--red); }
+
+/* ---------- Formulaires ---------- */
+.field { background: var(--field); border: 0; border-radius: 12px; padding: 10px 12px; min-width: 0; width: 100%;
+  -webkit-user-select: text; user-select: text; -webkit-appearance: none; appearance: none; }
+.field::placeholder { color: #8e8e93; }
+select.field { padding-right: 8px; }
+.btn { background: var(--blue); color: #fff; border: 0; border-radius: 12px; padding: 10px 16px; font-weight: 600; white-space: nowrap; }
+.btn.soft { background: rgba(0, 122, 255, .12); color: var(--blue); }
+.btn:active { opacity: .7; }
+.addev { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.addev .wide { grid-column: 1 / -1; }
+.addrow { display: flex; gap: 8px; }
+
+/* ---------- Courses ---------- */
+.list { grid-area: list; }
+.items { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); column-gap: 18px; align-content: start; }
+.items li { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--hair); cursor: pointer; }
+.items li span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.tick { flex: 0 0 24px; height: 24px; border-radius: 50%; border: 2px solid #c7c7cc; display: flex; align-items: center; justify-content: center; transition: background .2s, border-color .2s; }
+.items li.done .tick { background: var(--orange); border-color: var(--orange); }
+.items li.done .tick::after { content: ""; width: 6px; height: 11px; border: solid #fff; border-width: 0 2.5px 2.5px 0; transform: translateY(-1px) rotate(45deg); }
+.items li.done span { color: #8e8e93; text-decoration: line-through; }
+
+/* ---------- Message quand le dossier photos est vide ---------- */
+.pill { position: fixed; left: 50%; bottom: max(22px, env(safe-area-inset-bottom)); transform: translateX(-50%); max-width: calc(100% - 44px);
+  background: var(--glass-strong); -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px);
+  border-radius: 999px; padding: 10px 20px; font-size: 15px; font-weight: 500; text-align: center; box-shadow: 0 6px 20px rgba(0,0,0,.15); }
+@media (orientation: portrait) { .pill { bottom: calc(44% + 40px); } }
+@media (max-width: 600px) { .pill { bottom: max(16px, env(safe-area-inset-bottom)); } }
+@media (prefers-reduced-motion: reduce) { .bg img { transition: none; } .bg img.on { -webkit-animation: none; animation: none; } }
+</style>
+</head>
+<body>
+<div class="bg"><img id="imgA" alt=""><img id="imgB" alt=""></div>
+
+<div class="app">
+  <div class="clock">
+    <div class="time" id="clock">--:--</div>
+    <div class="date" id="date"></div>
+  </div>
+
+  <section class="card weather">
+    <div class="now">
+      <div class="ico" id="wIco">·</div>
+      <div>
+        <div class="temp" id="wTemp">--°</div>
+        <div class="lbl" id="wLbl">Chargement de la météo…</div>
+      </div>
+      <button class="city" id="city" title="Changer de ville"></button>
+    </div>
+    <div class="days" id="days"></div>
+  </section>
+
+  <section class="card agenda">
+    <header><h2>Rappels</h2></header>
+    <div class="scroll" id="agenda"></div>
+    <form class="addev" id="evForm">
+      <input class="field wide" id="evText" type="text" placeholder="Sortir les poubelles…" autocomplete="off">
+      <input class="field" id="evDate" type="date">
+      <select class="field" id="evRep">
+        <option value="0">Une fois</option>
+        <option value="1">Tous les jours</option>
+        <option value="7">Chaque semaine</option>
+        <option value="14">Toutes les 2 sem.</option>
+      </select>
+      <button class="btn wide">Ajouter le rappel</button>
+    </form>
+  </section>
+
+  <section class="card list">
+    <header>
+      <h2>Courses</h2>
+      <span class="count" id="count"></span>
+    </header>
+    <div class="scroll"><ul class="items" id="items"></ul></div>
+    <button class="btn soft" id="clearDone" hidden>Retirer les articles cochés</button>
+    <form class="addrow" id="itemForm">
+      <input class="field" id="itemText" type="text" placeholder="Ajouter un article" autocomplete="off">
+      <button class="btn">Ajouter</button>
+    </form>
+  </section>
+</div>
+
+<div class="pill" id="photoMsg" hidden></div>
+
+<script>
+"use strict";
+/* ---------- Réglages Google Drive (voir les explications) ---------- */
+var DRIVE_FOLDER_ID = "";   // l'identifiant du dossier « Cadre photo »
+var DRIVE_API_KEY = "";     // la clé API Google, limitée à ce site et à Drive
+var $ = function (id) { return document.getElementById(id); };
+function load(k, d) { try { var v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch (e) { return d; } }
+function save(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+function ymd(d) { return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
+function parseYmd(s) { var p = s.split("-"); return new Date(+p[0], p[1] - 1, +p[2]); }
+function today() { var n = new Date(); return new Date(n.getFullYear(), n.getMonth(), n.getDate()); }
+
+/* ---------- Horloge ---------- */
+function tick() {
+  var n = new Date();
+  $("clock").textContent = n.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+  $("date").textContent = n.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" });
+}
+tick(); setInterval(tick, 10000);
+
+/* ---------- Météo (Open-Meteo, sans clé) ---------- */
+var place = load("place", { name: "Paris", lat: 48.8566, lon: 2.3522 });
+var WMO = [[0, "☀️", "Ensoleillé"], [2, "⛅", "Éclaircies"], [3, "☁️", "Couvert"], [48, "🌫️", "Brouillard"],
+  [57, "🌦️", "Bruine"], [67, "🌧️", "Pluie"], [77, "🌨️", "Neige"], [82, "🌦️", "Averses"], [86, "🌨️", "Averses de neige"], [99, "⛈️", "Orage"]];
+function wmo(c) { for (var i = 0; i < WMO.length; i++) if (c <= WMO[i][0]) return WMO[i]; return WMO[WMO.length - 1]; }
+
+function weather() {
+  $("city").textContent = place.name;
+  var u = "https://api.open-meteo.com/v1/forecast?latitude=" + place.lat + "&longitude=" + place.lon +
+    "&current=temperature_2m,weather_code,wind_speed_10m&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=auto&forecast_days=4";
+  fetch(u).then(function (r) { return r.json(); }).then(function (d) {
+    var w = wmo(d.current.weather_code);
+    $("wIco").textContent = w[1];
+    $("wTemp").textContent = Math.round(d.current.temperature_2m) + "°";
+    $("wLbl").textContent = w[2] + " · vent " + Math.round(d.current.wind_speed_10m) + " km/h";
+    var days = $("days"); days.innerHTML = "";
+    for (var i = 1; i < 4; i++) {
+      var c = el("div");
+      c.appendChild(el("div", "d", parseYmd(d.daily.time[i]).toLocaleDateString("fr-FR", { weekday: "short" }).replace(".", "")));
+      c.appendChild(el("b", null, wmo(d.daily.weather_code[i])[1]));
+      c.appendChild(el("div", null, Math.round(d.daily.temperature_2m_min[i]) + "° · " + Math.round(d.daily.temperature_2m_max[i]) + "°"));
+      c.appendChild(el("div", "rain", "💧 " + d.daily.precipitation_probability_max[i] + " %"));
+      days.appendChild(c);
+    }
+  }).catch(function () { $("wLbl").textContent = "Météo indisponible (pas de connexion ?)"; });
+}
+$("city").onclick = function () {
+  var btn = $("city"), f = el("form", "addrow"), inp = el("input", "field");
+  inp.placeholder = "Ta ville"; f.style.marginLeft = "auto"; f.style.maxWidth = "190px";
+  f.appendChild(inp); f.appendChild(el("button", "btn", "OK"));
+  btn.replaceWith(f); inp.focus();
+  f.onsubmit = function (e) {
+    e.preventDefault();
+    fetch("https://geocoding-api.open-meteo.com/v1/search?count=1&language=fr&name=" + encodeURIComponent(inp.value.trim()))
+      .then(function (r) { return r.json(); }).then(function (d) {
+        if (!d.results || !d.results.length) { inp.value = ""; inp.placeholder = "Introuvable"; return; }
+        var r = d.results[0];
+        place = { name: r.name, lat: r.latitude, lon: r.longitude }; save("place", place);
+        f.replaceWith(btn); weather();
+      });
+  };
+};
+weather(); setInterval(weather, 30 * 60000);
+
+/* ---------- Courses ---------- */
+var items = load("items", []);
+function renderItems() {
+  var ul = $("items"); ul.innerHTML = "";
+  if (!items.length) ul.appendChild(el("li", "hint", "La liste est vide."));
+  items.forEach(function (it) {
+    var li = el("li", it.done ? "done" : ""); li.appendChild(el("div", "tick")); li.appendChild(el("span", null, it.text));
+    li.onclick = function () { it.done = !it.done; save("items", items); renderItems(); };
+    ul.appendChild(li);
+  });
+  var left = items.filter(function (i) { return !i.done; }).length;
+  $("count").textContent = items.length ? left + " à acheter" : "";
+  $("clearDone").hidden = left === items.length;
+}
+$("itemForm").onsubmit = function (e) {
+  e.preventDefault(); var t = $("itemText").value.trim(); if (!t) return;
+  items.push({ text: t, done: false }); save("items", items); $("itemText").value = ""; renderItems();
+};
+$("clearDone").onclick = function () { items = items.filter(function (i) { return !i.done; }); save("items", items); renderItems(); };
+renderItems();
+
+/* ---------- Rappels ---------- */
+var events = load("events", []);
+// Prochaine occurrence d'un rappel (répété tous les `every` jours), ou null s'il est passé.
+function nextDate(ev, t) {
+  var d = parseYmd(ev.date);
+  if (d >= t) return d;
+  if (!ev.every) return null;
+  var late = Math.round((t - d) / 864e5);
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate() + Math.ceil(late / ev.every) * ev.every);
+}
+function renderEvents() {
+  var t = today(), box = $("agenda"); box.innerHTML = "";
+  events = events.filter(function (ev) { return nextDate(ev, t); }); save("events", events);
+  var list = events.map(function (ev) { return { ev: ev, d: nextDate(ev, t) }; }).sort(function (a, b) { return a.d - b.d; });
+  if (!list.length) box.appendChild(el("div", "hint", "Aucun rappel pour l'instant."));
+  list.forEach(function (x) {
+    var diff = Math.round((x.d - t) / 864e5);
+    var row = el("div", "ev" + (diff === 0 ? " today" : diff === 1 ? " tomorrow" : ""));
+    row.appendChild(el("div", "when", diff === 0 ? "Aujourd'hui" : diff === 1 ? "Demain" : x.d.toLocaleDateString("fr-FR", { weekday: "short", day: "numeric" }).replace(".", "")));
+    var what = el("div", "what", x.ev.text);
+    if (x.ev.every) what.appendChild(el("div", "rep", x.ev.every === 1 ? "Tous les jours" : x.ev.every === 7 ? "Chaque semaine" : "Toutes les 2 semaines"));
+    row.appendChild(what);
+    var del = el("button", "x", "×"); del.setAttribute("aria-label", "Supprimer le rappel");
+    del.onclick = function () { events.splice(events.indexOf(x.ev), 1); save("events", events); renderEvents(); };
+    row.appendChild(del); box.appendChild(row);
+  });
+}
+$("evDate").value = ymd(today());
+$("evForm").onsubmit = function (e) {
+  e.preventDefault(); var t = $("evText").value.trim(); if (!t || !$("evDate").value) return;
+  events.push({ text: t, date: $("evDate").value, every: +$("evRep").value }); save("events", events);
+  $("evText").value = ""; renderEvents();
+};
+renderEvents();
+// Rafraîchit "Aujourd'hui / Demain" après minuit.
+var lastDay = ymd(today());
+setInterval(function () { if (ymd(today()) !== lastDay) { lastDay = ymd(today()); renderEvents(); } }, 60000);
+
+/* ---------- Photos : dossier Google Drive partagé, relu toutes les 10 min ---------- */
+function photoMsg(t) { $("photoMsg").textContent = t || ""; $("photoMsg").hidden = !t; }
+var photos = [], idx = -1, layers = [$("imgA"), $("imgB")], front = 0;
+function refreshPhotos() {
+  if (!DRIVE_FOLDER_ID || !DRIVE_API_KEY) { photoMsg("Cadre photo pas encore relié à Google Drive"); return; }
+  var q = encodeURIComponent("'" + DRIVE_FOLDER_ID + "' in parents and mimeType contains 'image/' and trashed = false");
+  fetch("https://www.googleapis.com/drive/v3/files?pageSize=1000&orderBy=createdTime desc&fields=files(id)&q=" + q + "&key=" + DRIVE_API_KEY)
+    .then(function (r) { return r.json(); }).then(function (d) {
+      if (!d.files) throw d;
+      var first = !photos.length;
+      photos = d.files.map(function (f) { return f.id; });
+      if (idx >= photos.length) idx = -1;
+      photoMsg(photos.length ? "" : "Ajoute des photos dans le dossier Google Drive « Cadre photo »");
+      if (!photos.length) layers.forEach(function (l) { l.className = ""; });
+      else if (first) next(true);
+    }).catch(function () { if (!photos.length) photoMsg("Photos indisponibles (connexion ou réglage Drive)"); });
+}
+function next(force) {
+  if (!photos.length || (photos.length === 1 && !force)) return;
+  idx = (idx + 1) % photos.length;
+  var back = 1 - front, img = layers[back];
+  img.onload = function () { img.className = "on"; layers[front].className = ""; front = back; };
+  img.onerror = function () { img.onerror = null; };
+  // Google redimensionne à 2048 px : léger pour le vieil iPad.
+  img.src = "https://drive.google.com/thumbnail?sz=w2048&id=" + photos[idx];
+}
+setInterval(next, 12000);              // durée d'affichage d'une photo
+setInterval(refreshPhotos, 10 * 60000); // nouvelles photos du téléphone
+refreshPhotos();
+</script>
+</body>
+</html>
