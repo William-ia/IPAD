@@ -147,6 +147,7 @@ select.field { padding-right: 8px; }
 .list .count { background: var(--orange); color: #fff; font-size: 13px; font-weight: 700; border-radius: 999px; padding: 3px 10px; }
 .add { position: relative; }
 .add .field { border-radius: 999px; padding: 11px 92px 11px 16px; }
+.add.nomic .field { padding-right: 52px; }
 .add .mic { position: absolute; right: 45px; top: 50%; transform: translateY(-50%); width: 36px; height: 36px; border-radius: 50%; border: 0;
   background: rgba(0, 122, 255, .12); color: var(--blue); display: flex; align-items: center; justify-content: center; padding: 0; }
 .add .mic svg { width: 18px; height: 18px; fill: currentColor; }
@@ -182,6 +183,8 @@ select.field { padding-right: 8px; }
   .items li { padding: 13px 0; font-size: 18px; }
   .pill { display: none; }
 }
+/* Mode nuit : écran noir complet, un toucher le rallume */
+.night { position: fixed; inset: 0; z-index: 20; background: #000; }
 @media (prefers-reduced-motion: reduce) { .bg img { transition: none; } .bg img.on { -webkit-animation: none; animation: none; } }
 </style>
 </head>
@@ -244,6 +247,7 @@ select.field { padding-right: 8px; }
 </div>
 
 <div class="pill" id="photoMsg" hidden></div>
+<div class="night" id="night" hidden></div>
 
 <script>
 "use strict";
@@ -258,6 +262,13 @@ function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.cl
 function ymd(d) { return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
 function parseYmd(s) { var p = s.split("-"); return new Date(+p[0], p[1] - 1, +p[2]); }
 function today() { var n = new Date(); return new Date(n.getFullYear(), n.getMonth(), n.getDate()); }
+
+/* ---------- Mode nuit : noir de minuit à 6 h, un toucher rallume 5 min ---------- */
+var NIGHT_FROM = 0, NIGHT_TO = 6, WAKE_MIN = 5, wokeUntil = 0;
+function isNight() { var h = new Date().getHours(); return h >= NIGHT_FROM && h < NIGHT_TO && Date.now() > wokeUntil; }
+function nightCheck() { $("night").hidden = !isNight(); }
+$("night").onclick = function () { wokeUntil = Date.now() + WAKE_MIN * 60000; nightCheck(); };
+nightCheck(); setInterval(nightCheck, 15000);
 
 /* ---------- Horloge ---------- */
 function tick() {
@@ -407,10 +418,9 @@ setInterval(function () { if (document.activeElement === $("itemText")) checkSai
 // Dans l'appli de l'écran d'accueil de l'iPad (navigator.standalone), iPadOS 15 bloque cette écoute
 // sans prévenir : on ouvre alors le clavier, dont le micro marche (« carotte ajouter »).
 var Speech = window.SpeechRecognition || window.webkitSpeechRecognition, rec = null, finish = null;
-// Dans l'appli iPad, le 🎤 lance le raccourci « Frigo » (action « Dicter le texte »), qui, lui, peut écouter.
-var SHORTCUT = "Frigo";
+// Dans l'appli iPad (écran d'accueil), iPadOS 15 interdit l'écoute : pas de 🎤, on dicte avec le clavier.
+if (navigator.standalone) { $("mic").hidden = true; $("itemForm").classList.add("nomic"); }
 $("mic").onclick = function () {
-  if (navigator.standalone) { location.href = "shortcuts://run-shortcut?name=" + encodeURIComponent(SHORTCUT); return; }
   if (rec) { finish(); return; }  // deuxième appui : on arrête toujours, sans attendre Safari
   if (!Speech) { $("itemText").focus(); return; }
   var heard = "", quiet, me = new Speech();
