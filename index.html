@@ -213,6 +213,8 @@ select.field { padding-right: 8px; }
         <option value="1">Tous les jours</option>
         <option value="7">Chaque semaine</option>
         <option value="14">Toutes les 2 sem.</option>
+        <option value="30">Chaque mois</option>
+        <option value="365">Chaque année</option>
       </select>
       <button class="btn wide">Ajouter le rappel</button>
     </form>
@@ -398,12 +400,28 @@ shop(); setInterval(shop, 60000); // récupère ce qui a été ajouté par Siri 
 /* ---------- Rappels ---------- */
 var events = load("events", []);
 // Prochaine occurrence d'un rappel (répété tous les `every` jours), ou null s'il est passé.
+// every : nombre de jours, sauf 30 = chaque mois et 365 = chaque année (même jour du calendrier).
 function nextDate(ev, t) {
   var d = parseYmd(ev.date);
   if (d >= t) return d;
   if (!ev.every) return null;
+  if (ev.every === 30 || ev.every === 365) {
+    var step = ev.every === 30 ? 1 : 12, k = 1;
+    while (addMonths(d, k * step) < t) k++;
+    return addMonths(d, k * step);
+  }
   var late = Math.round((t - d) / 864e5);
   return new Date(d.getFullYear(), d.getMonth(), d.getDate() + Math.ceil(late / ev.every) * ev.every);
+}
+// Le 31 devient le 30 (ou le 28 février) les mois plus courts ; un 29 février, le 28 hors années bissextiles.
+function addMonths(d, n) {
+  var last = new Date(d.getFullYear(), d.getMonth() + n + 1, 0).getDate();
+  return new Date(d.getFullYear(), d.getMonth() + n, Math.min(d.getDate(), last));
+}
+var REPEAT = { 1: "Tous les jours", 7: "Chaque semaine", 14: "Toutes les 2 semaines", 30: "Chaque mois", 365: "Chaque année" };
+function shortDate(d, diff) {
+  if (diff === 1) return "Demain";
+  return d.toLocaleDateString("fr-FR", diff < 7 ? { weekday: "short", day: "numeric" } : { day: "numeric", month: "short" }).replace(".", "");
 }
 function renderEvents() {
   var t = today(), box = $("agenda"); box.innerHTML = "";
@@ -417,9 +435,9 @@ function renderEvents() {
     todays.forEach(function (x) { card.appendChild(el("div", null, x.ev.text)); });
     due.appendChild(card);
   }
-  list.filter(function (x) { return x.d - t > 0; }).slice(0, 4).forEach(function (x) {
+  list.filter(function (x) { return x.d - t > 0; }).slice(0, 3).forEach(function (x) {
     var diff = Math.round((x.d - t) / 864e5), row = el("div", "later");
-    row.appendChild(el("b", null, diff === 1 ? "Demain" : x.d.toLocaleDateString("fr-FR", { weekday: "short", day: "numeric" }).replace(".", "")));
+    row.appendChild(el("b", null, shortDate(x.d, diff)));
     row.appendChild(el("span", null, x.ev.text));
     due.appendChild(row);
   });
@@ -430,7 +448,7 @@ function renderEvents() {
     var row = el("div", "ev" + (diff === 0 ? " today" : diff === 1 ? " tomorrow" : ""));
     row.appendChild(el("div", "when", diff === 0 ? "Aujourd'hui" : diff === 1 ? "Demain" : x.d.toLocaleDateString("fr-FR", { weekday: "short", day: "numeric" }).replace(".", "")));
     var what = el("div", "what", x.ev.text);
-    if (x.ev.every) what.appendChild(el("div", "rep", x.ev.every === 1 ? "Tous les jours" : x.ev.every === 7 ? "Chaque semaine" : "Toutes les 2 semaines"));
+    if (x.ev.every) what.appendChild(el("div", "rep", REPEAT[x.ev.every] || "Tous les " + x.ev.every + " jours"));
     row.appendChild(what);
     var del = el("button", "x", "×"); del.setAttribute("aria-label", "Supprimer le rappel");
     del.onclick = function () {
