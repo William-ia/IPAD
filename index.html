@@ -98,7 +98,7 @@ button { cursor: pointer; }
 .days .rain { color: var(--blue); font-size: 12px; font-weight: 600; }
 
 /* ---------- Rappels ---------- */
-.agenda { grid-area: agenda; align-self: start; max-height: 100%; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+.agenda { grid-area: agenda; align-self: end; max-height: 100%; overflow-y: auto; -webkit-overflow-scrolling: touch; }
 .agenda .scroll { flex: none; overflow: visible; }
 .agenda header { align-items: center; }
 .btn.small { padding: 6px 12px; font-size: 15px; }
@@ -130,7 +130,15 @@ select.field { padding-right: 8px; }
 .addrow { display: flex; gap: 8px; }
 
 /* ---------- Courses ---------- */
-.list { grid-area: list; }
+.list { grid-area: list; align-self: end; max-height: 100%; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+.list .scroll { flex: none; overflow: visible; }
+.list .count { background: var(--orange); color: #fff; font-size: 13px; font-weight: 700; border-radius: 999px; padding: 3px 10px; }
+.add { position: relative; }
+.add .field { border-radius: 999px; padding: 11px 52px 11px 16px; }
+.add .plus { position: absolute; right: 5px; top: 50%; transform: translateY(-50%); width: 36px; height: 36px; border-radius: 50%; border: 0;
+  background: var(--blue); color: #fff; font-size: 26px; font-weight: 300; line-height: 1; padding: 0 0 3px; }
+.add .plus:active { opacity: .7; }
+.clear { align-self: flex-start; background: none; border: 0; padding: 0; color: var(--blue); font-size: 15px; font-weight: 500; }
 .items { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); column-gap: 18px; align-content: start; }
 .items li { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--hair); cursor: pointer; }
 .items li span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
@@ -192,14 +200,14 @@ select.field { padding-right: 8px; }
   <section class="card list">
     <header>
       <h2>Courses</h2>
-      <span class="count" id="count"></span>
+      <span class="count" id="count" hidden></span>
     </header>
-    <div class="scroll"><ul class="items" id="items"></ul></div>
-    <button class="btn soft" id="clearDone" hidden>Retirer les articles cochés</button>
-    <form class="addrow" id="itemForm">
+    <form class="add" id="itemForm">
       <input class="field" id="itemText" type="text" placeholder="Ajouter un article" autocomplete="off">
-      <button class="btn">Ajouter</button>
+      <button class="plus" aria-label="Ajouter l'article">+</button>
     </form>
+    <div class="scroll"><ul class="items" id="items"></ul></div>
+    <button class="clear" id="clearDone" hidden>Retirer les articles cochés</button>
   </section>
 </div>
 
@@ -274,14 +282,15 @@ weather(); setInterval(weather, 30 * 60000);
 var items = load("items", []);
 function renderItems() {
   var ul = $("items"); ul.innerHTML = "";
-  if (!items.length) ul.appendChild(el("li", "hint", "La liste est vide."));
-  items.forEach(function (it) {
+  if (!items.length) ul.appendChild(el("li", "hint", "Rien à acheter pour l'instant."));
+  // Les articles cochés descendent en bas de la liste.
+  items.filter(function (i) { return !i.done; }).concat(items.filter(function (i) { return i.done; })).forEach(function (it) {
     var li = el("li", it.done ? "done" : ""); li.appendChild(el("div", "tick")); li.appendChild(el("span", null, it.text));
     li.onclick = function () { it.done = !it.done; save("items", items); renderItems(); };
     ul.appendChild(li);
   });
   var left = items.filter(function (i) { return !i.done; }).length;
-  $("count").textContent = items.length ? left + " à acheter" : "";
+  $("count").textContent = left; $("count").hidden = !left;
   $("clearDone").hidden = left === items.length;
 }
 $("itemForm").onsubmit = function (e) {
