@@ -98,7 +98,15 @@ button { cursor: pointer; }
 .days .rain { color: var(--blue); font-size: 12px; font-weight: 600; }
 
 /* ---------- Rappels ---------- */
-.agenda { grid-area: agenda; }
+.agenda { grid-area: agenda; align-self: start; max-height: 100%; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+.agenda .scroll { flex: none; overflow: visible; }
+.agenda header { align-items: center; }
+.btn.small { padding: 6px 12px; font-size: 15px; }
+.due { background: var(--orange); color: #fff; border-radius: 16px; padding: 12px 16px; box-shadow: 0 6px 18px rgba(255, 149, 0, .35); }
+.due small { display: block; font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; opacity: .85; }
+.due div { font-size: 20px; font-weight: 600; }
+.panel { display: flex; flex-direction: column; gap: 12px; min-height: 0; }
+.panel h3 { margin: 4px 0 0; font-size: 13px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-2); }
 .ev { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--hair); }
 .ev:last-child { border-bottom: 0; }
 .ev .when { flex: 0 0 auto; min-width: 66px; text-align: center; padding: 4px 8px; border-radius: 10px; background: rgba(255,255,255,.6); font-size: 13px; font-weight: 600; color: var(--ink-2); text-transform: capitalize; }
@@ -162,8 +170,9 @@ select.field { padding-right: 8px; }
   </section>
 
   <section class="card agenda">
-    <header><h2>Rappels</h2></header>
-    <div class="scroll" id="agenda"></div>
+    <header><h2>Rappels</h2><button class="btn soft small" id="evToggle">+ Ajouter</button></header>
+    <div id="todayList"></div>
+    <div class="panel" id="evPanel" hidden>
     <form class="addev" id="evForm">
       <input class="field wide" id="evText" type="text" placeholder="Sortir les poubelles…" autocomplete="off">
       <input class="field" id="evDate" type="date">
@@ -175,6 +184,9 @@ select.field { padding-right: 8px; }
       </select>
       <button class="btn wide">Ajouter le rappel</button>
     </form>
+    <h3>Tous les rappels</h3>
+    <div class="scroll" id="agenda"></div>
+    </div>
   </section>
 
   <section class="card list">
@@ -196,8 +208,8 @@ select.field { padding-right: 8px; }
 <script>
 "use strict";
 /* ---------- Réglages Google Drive (voir les explications) ---------- */
-var DRIVE_FOLDER_ID = "";   // l'identifiant du dossier « Cadre photo »
-var DRIVE_API_KEY = "";     // la clé API Google, limitée à ce site et à Drive
+var DRIVE_FOLDER_ID = "1oDg4Igm6kSV_6kCZL4uiwGQBLRfZj0WS";   // l'identifiant du dossier « Cadre photo »
+var DRIVE_API_KEY = "AIzaSyDpIErxLrooUVoeN9QkOAa5DdMmRtKlLog";   // la clé API Google, limitée à ce site et à Drive
 var $ = function (id) { return document.getElementById(id); };
 function load(k, d) { try { var v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch (e) { return d; } }
 function save(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
@@ -293,6 +305,14 @@ function renderEvents() {
   var t = today(), box = $("agenda"); box.innerHTML = "";
   events = events.filter(function (ev) { return nextDate(ev, t); }); save("events", events);
   var list = events.map(function (ev) { return { ev: ev, d: nextDate(ev, t) }; }).sort(function (a, b) { return a.d - b.d; });
+  // À l'écran : seulement les rappels du jour, en couleur.
+  var due = $("todayList"); due.innerHTML = "";
+  var todays = list.filter(function (x) { return x.d - t === 0; });
+  if (todays.length) {
+    var card = el("div", "due"); card.appendChild(el("small", null, "Aujourd'hui"));
+    todays.forEach(function (x) { card.appendChild(el("div", null, x.ev.text)); });
+    due.appendChild(card);
+  } else due.appendChild(el("div", "hint", "Rien de prévu aujourd'hui."));
   if (!list.length) box.appendChild(el("div", "hint", "Aucun rappel pour l'instant."));
   list.forEach(function (x) {
     var diff = Math.round((x.d - t) / 864e5);
@@ -310,8 +330,15 @@ $("evDate").value = ymd(today());
 $("evForm").onsubmit = function (e) {
   e.preventDefault(); var t = $("evText").value.trim(); if (!t || !$("evDate").value) return;
   events.push({ text: t, date: $("evDate").value, every: +$("evRep").value }); save("events", events);
-  $("evText").value = ""; renderEvents();
+  $("evText").value = ""; renderEvents(); togglePanel(false);
 };
+// Le panneau se referme seul après 2 min pour que l'écran reste épuré.
+var panelTimer;
+function togglePanel(open) {
+  $("evPanel").hidden = !open; $("evToggle").textContent = open ? "Fermer" : "+ Ajouter";
+  clearTimeout(panelTimer); if (open) panelTimer = setTimeout(function () { togglePanel(false); }, 120000);
+}
+$("evToggle").onclick = function () { togglePanel($("evPanel").hidden); };
 renderEvents();
 // Rafraîchit "Aujourd'hui / Demain" après minuit.
 var lastDay = ymd(today());
