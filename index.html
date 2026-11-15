@@ -312,11 +312,17 @@ function renderItems() {
   $("count").textContent = left; $("count").hidden = !left;
   $("clearDone").hidden = left === items.length;
 }
-$("itemForm").onsubmit = function (e) {
-  e.preventDefault(); var t = $("itemText").value.trim(); if (!t) return;
+function addItem() {
+  var t = $("itemText").value.trim(); if (!t) return;
   items.push({ text: t, done: false }); save("items", items); $("itemText").value = ""; renderItems();
   shop("add=" + encodeURIComponent(t));
-};
+}
+$("itemForm").onsubmit = function (e) { e.preventDefault(); addItem(); };
+// Dictée : « carotte ajouter » ajoute l'article sans toucher le +.
+$("itemText").addEventListener("input", function () {
+  var m = this.value.match(/^(.*?)[\s,.]*\bajoute(?:r|z)?[\s.!]*$/i);
+  if (m && m[1].trim()) { this.value = m[1]; addItem(); }
+});
 $("clearDone").onclick = function () { items = items.filter(function (i) { return !i.done; }); save("items", items); renderItems(); shop("clear=1"); };
 renderItems();
 shop(); setInterval(shop, 60000); // récupère ce qui a été ajouté par Siri ou le téléphone
