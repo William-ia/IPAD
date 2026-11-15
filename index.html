@@ -159,7 +159,8 @@ select.field { padding-right: 8px; }
 .clear { align-self: flex-start; background: none; border: 0; padding: 0; color: var(--blue); font-size: 15px; font-weight: 500; }
 .items { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); column-gap: 18px; align-content: start; }
 .items li { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--hair); cursor: pointer; }
-.items li span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.items li span { flex: 1; min-width: 0; overflow-wrap: anywhere; cursor: text; }
+.items .edit { flex: 1; padding: 6px 10px; margin: -6px 0; border-radius: 10px; font-size: inherit; box-shadow: inset 0 0 0 2px var(--blue); }
 .tick { flex: 0 0 24px; height: 24px; border-radius: 50%; border: 2px solid #c7c7cc; display: flex; align-items: center; justify-content: center; transition: background .2s, border-color .2s; }
 .items li.done .tick { background: var(--orange); border-color: var(--orange); }
 .items li.done .tick::after { content: ""; width: 6px; height: 11px; border: solid #fff; border-width: 0 2.5px 2.5px 0; transform: translateY(-1px) rotate(45deg); }
@@ -331,7 +332,7 @@ function shop(params) {
     .then(function (r) { return r.json(); })
     .then(function (list) {
       if (params) { if (--pending === 0) shop(); return; }
-      if (mine !== gen || pending) return;
+      if (mine !== gen || pending || editing) return; // pas pendant une correction en cours
       // Ancien script : juste la liste de courses. Nouveau : { courses, rappels }.
       items = Array.isArray(list) ? list : list.courses; save("items", items); renderItems();
       if (!list.rappels) return;
@@ -350,13 +351,39 @@ function renderItems() {
   if (!items.length) ul.appendChild(el("li", "hint", "Rien à acheter pour l'instant."));
   // Les articles cochés descendent en bas de la liste.
   items.filter(function (i) { return !i.done; }).concat(items.filter(function (i) { return i.done; })).forEach(function (it) {
-    var li = el("li", it.done ? "done" : ""); li.appendChild(el("div", "tick")); li.appendChild(el("span", null, it.text));
-    li.onclick = function () { it.done = !it.done; save("items", items); renderItems(); if (it.id) shop("toggle=" + encodeURIComponent(it.id)); };
+    var li = el("li", it.done ? "done" : ""), text = el("span", null, it.text);
+    li.appendChild(el("div", "tick")); li.appendChild(text);
+    // Le texte se corrige, le reste de la ligne (le rond) coche / décoche.
+    li.onclick = function (e) {
+      if (e.target === text) { editItem(it, text); return; }
+      if (editing) return;
+      it.done = !it.done; save("items", items); renderItems(); if (it.id) shop("toggle=" + encodeURIComponent(it.id));
+    };
     ul.appendChild(li);
   });
   var left = items.filter(function (i) { return !i.done; }).length;
   $("count").textContent = left; $("count").hidden = !left;
   $("clearDone").hidden = left === items.length;
+}
+// Remplace le texte par un champ ; Entrée ou toucher ailleurs enregistre, Échap annule.
+var editing = false;
+function editItem(it, span) {
+  if (editing) return;
+  editing = true;
+  var inp = el("input", "field edit"); inp.value = it.text; inp.setAttribute("aria-label", "Modifier l'article");
+  span.replaceWith(inp); inp.focus(); inp.select();
+  var done = function (keep) {
+    if (!editing) return;
+    editing = false;
+    var t = inp.value.trim();
+    if (keep && t && t !== it.text) {
+      it.text = t; save("items", items);
+      if (it.id) shop("edit=" + encodeURIComponent(it.id) + "&text=" + encodeURIComponent(t));
+    }
+    renderItems();
+  };
+  inp.onkeydown = function (e) { if (e.key === "Enter") done(true); if (e.key === "Escape") done(false); };
+  inp.onblur = function () { done(true); };
 }
 function addItem() {
   var t = $("itemText").value.trim(); if (!t) return;
@@ -370,7 +397,8 @@ $("itemForm").onsubmit = function (e) { e.preventDefault(); addItem(); };
 var SAY_ADD = /^(.*?)[\s,.]*\bajout(?:e|er|ez|é|ée|és|ées|ait|ais)?[\s.!]*$/i;
 function checkSaidAdd() {
   var m = $("itemText").value.match(SAY_ADD);
-  if (m && m[1].trim()) { $("itemText").value = m[1]; addItem(); }
+  // On ferme le clavier : sinon l'iPad reste sur la dictée sans plus rien enregistrer.
+  if (m && m[1].trim()) { $("itemText").value = m[1]; addItem(); $("itemText").blur(); }
 }
 $("itemText").addEventListener("input", checkSaidAdd);
 setInterval(function () { if (document.activeElement === $("itemText")) checkSaidAdd(); }, 500);
@@ -379,8 +407,10 @@ setInterval(function () { if (document.activeElement === $("itemText")) checkSai
 // Dans l'appli de l'écran d'accueil de l'iPad (navigator.standalone), iPadOS 15 bloque cette écoute
 // sans prévenir : on ouvre alors le clavier, dont le micro marche (« carotte ajouter »).
 var Speech = window.SpeechRecognition || window.webkitSpeechRecognition, rec = null, finish = null;
-if (navigator.standalone) Speech = null;
+// Dans l'appli iPad, le 🎤 lance le raccourci « Frigo » (action « Dicter le texte »), qui, lui, peut écouter.
+var SHORTCUT = "Frigo";
 $("mic").onclick = function () {
+  if (navigator.standalone) { location.href = "shortcuts://run-shortcut?name=" + encodeURIComponent(SHORTCUT); return; }
   if (rec) { finish(); return; }  // deuxième appui : on arrête toujours, sans attendre Safari
   if (!Speech) { $("itemText").focus(); return; }
   var heard = "", quiet, me = new Speech();
@@ -409,6 +439,8 @@ $("mic").onclick = function () {
 $("clearDone").onclick = function () { items = items.filter(function (i) { return !i.done; }); save("items", items); renderItems(); shop("clear=1"); };
 renderItems();
 shop(); setInterval(shop, 60000); // récupère ce qui a été ajouté par Siri ou le téléphone
+// Au retour dans l'appli (après le raccourci « Frigo », par exemple) : relecture immédiate.
+document.addEventListener("visibilitychange", function () { if (!document.hidden) shop(); });
 
 /* ---------- Rappels ---------- */
 var events = load("events", []);
