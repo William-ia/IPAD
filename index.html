@@ -138,7 +138,13 @@ select.field { padding-right: 8px; }
 .list .scroll { flex: none; overflow: visible; }
 .list .count { background: var(--orange); color: #fff; font-size: 13px; font-weight: 700; border-radius: 999px; padding: 3px 10px; }
 .add { position: relative; }
-.add .field { border-radius: 999px; padding: 11px 52px 11px 16px; }
+.add .field { border-radius: 999px; padding: 11px 92px 11px 16px; }
+.add .mic { position: absolute; right: 45px; top: 50%; transform: translateY(-50%); width: 36px; height: 36px; border-radius: 50%; border: 0;
+  background: rgba(0, 122, 255, .12); color: var(--blue); display: flex; align-items: center; justify-content: center; padding: 0; }
+.add .mic svg { width: 18px; height: 18px; fill: currentColor; }
+.add .mic.on { background: var(--red); color: #fff; -webkit-animation: pulse 1.2s ease-in-out infinite; animation: pulse 1.2s ease-in-out infinite; }
+@-webkit-keyframes pulse { 50% { box-shadow: 0 0 0 8px rgba(255, 59, 48, .2); } }
+@keyframes pulse { 50% { box-shadow: 0 0 0 8px rgba(255, 59, 48, .2); } }
 .add .plus { position: absolute; right: 5px; top: 50%; transform: translateY(-50%); width: 36px; height: 36px; border-radius: 50%; border: 0;
   background: var(--blue); color: #fff; font-size: 26px; font-weight: 300; line-height: 1; padding: 0 0 3px; }
 .add .plus:active { opacity: .7; }
@@ -208,6 +214,7 @@ select.field { padding-right: 8px; }
     </header>
     <form class="add" id="itemForm">
       <input class="field" id="itemText" type="text" placeholder="Ajouter un article" autocomplete="off">
+      <button class="mic" id="mic" type="button" aria-label="Dicter un article"><svg viewBox="0 0 24 24"><path d="M12 15a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v7a3 3 0 0 0 3 3zm6-3a6 6 0 0 1-12 0H4a8 8 0 0 0 7 7.9V22h2v-2.1A8 8 0 0 0 20 12h-2z"/></svg></button>
       <button class="plus" aria-label="Ajouter l'article">+</button>
     </form>
     <div class="scroll"><ul class="items" id="items"></ul></div>
@@ -323,6 +330,21 @@ $("itemText").addEventListener("input", function () {
   var m = this.value.match(/^(.*?)[\s,.]*\bajoute(?:r|z)?[\s.!]*$/i);
   if (m && m[1].trim()) { this.value = m[1]; addItem(); }
 });
+// Bouton micro : reconnaissance vocale de Safari si elle est permise, sinon ouvre le clavier (et son micro).
+var Speech = window.SpeechRecognition || window.webkitSpeechRecognition, rec = null;
+$("mic").onclick = function () {
+  if (rec) { rec.stop(); return; }
+  if (!Speech) { $("itemText").focus(); return; }
+  rec = new Speech(); rec.lang = "fr-FR"; rec.interimResults = false; rec.maxAlternatives = 1;
+  rec.onresult = function (e) {
+    $("itemText").value = e.results[0][0].transcript.replace(/[\s,.]*\bajoute(?:r|z)?[\s.!]*$/i, "");
+    addItem();
+  };
+  rec.onerror = function (e) { if (e.error === "not-allowed" || e.error === "service-not-allowed") { Speech = null; $("itemText").focus(); } };
+  rec.onend = function () { rec = null; $("mic").classList.remove("on"); };
+  $("mic").classList.add("on");
+  try { rec.start(); } catch (err) { rec = null; $("mic").classList.remove("on"); $("itemText").focus(); }
+};
 $("clearDone").onclick = function () { items = items.filter(function (i) { return !i.done; }); save("items", items); renderItems(); shop("clear=1"); };
 renderItems();
 shop(); setInterval(shop, 60000); // récupère ce qui a été ajouté par Siri ou le téléphone
