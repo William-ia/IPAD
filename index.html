@@ -376,27 +376,35 @@ $("itemText").addEventListener("input", checkSaidAdd);
 setInterval(function () { if (document.activeElement === $("itemText")) checkSaidAdd(); }, 500);
 // Bouton micro : reconnaissance vocale de Safari si elle est permise, sinon ouvre le clavier (et son micro).
 // Safari sur iPad écoute sans fin : on s'arrête après 1 s de silence ou dès qu'on entend « ajouter ».
-var Speech = window.SpeechRecognition || window.webkitSpeechRecognition, rec = null;
+// Dans l'appli de l'écran d'accueil de l'iPad (navigator.standalone), iPadOS 15 bloque cette écoute
+// sans prévenir : on ouvre alors le clavier, dont le micro marche (« carotte ajouter »).
+var Speech = window.SpeechRecognition || window.webkitSpeechRecognition, rec = null, finish = null;
+if (navigator.standalone) Speech = null;
 $("mic").onclick = function () {
-  if (rec) { rec.stop(); return; }
+  if (rec) { finish(); return; }  // deuxième appui : on arrête toujours, sans attendre Safari
   if (!Speech) { $("itemText").focus(); return; }
-  var heard = "", quiet;
-  rec = new Speech(); rec.lang = "fr-FR"; rec.interimResults = true; rec.maxAlternatives = 1;
-  rec.onresult = function (e) {
-    heard = ""; for (var i = 0; i < e.results.length; i++) heard += e.results[i][0].transcript;
-    $("itemText").value = heard;
-    clearTimeout(quiet);
-    if (SAY_ADD.test(heard) || e.results[e.results.length - 1].isFinal) rec.stop();
-    else quiet = setTimeout(function () { if (rec) rec.stop(); }, 1000);
-  };
-  rec.onerror = function (e) { if (e.error === "not-allowed" || e.error === "service-not-allowed") { Speech = null; $("itemText").focus(); } };
-  rec.onend = function () {
-    clearTimeout(quiet); rec = null; $("mic").classList.remove("on");
+  var heard = "", quiet, me = new Speech();
+  // Termine une seule fois, quelle que soit la cause (silence, appui, délai, fin normale).
+  finish = function () {
+    if (rec !== me) return;
+    clearTimeout(quiet); clearTimeout(giveUp); rec = null; $("mic").classList.remove("on");
+    try { me.abort(); } catch (err) {}
     var m = heard.match(SAY_ADD); $("itemText").value = m ? m[1] : heard;
     addItem();
   };
-  $("mic").classList.add("on");
-  try { rec.start(); } catch (err) { rec = null; $("mic").classList.remove("on"); $("itemText").focus(); }
+  var giveUp = setTimeout(function () { if (!heard) finish(); }, 8000); // rien entendu : on lâche
+  me.lang = "fr-FR"; me.interimResults = true; me.maxAlternatives = 1;
+  me.onresult = function (e) {
+    heard = ""; for (var i = 0; i < e.results.length; i++) heard += e.results[i][0].transcript;
+    $("itemText").value = heard;
+    clearTimeout(quiet);
+    if (SAY_ADD.test(heard) || e.results[e.results.length - 1].isFinal) finish();
+    else quiet = setTimeout(finish, 1000);
+  };
+  me.onerror = function (e) { if (e.error === "not-allowed" || e.error === "service-not-allowed") Speech = null; finish(); };
+  me.onend = finish;
+  rec = me; $("mic").classList.add("on");
+  try { me.start(); } catch (err) { finish(); $("itemText").focus(); }
 };
 $("clearDone").onclick = function () { items = items.filter(function (i) { return !i.done; }); save("items", items); renderItems(); shop("clear=1"); };
 renderItems();
