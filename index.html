@@ -108,6 +108,11 @@ button { cursor: pointer; }
 .due { background: var(--orange); color: #fff; border-radius: 16px; padding: 12px 16px; box-shadow: 0 6px 18px rgba(255, 149, 0, .35); }
 .due small { display: block; font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; opacity: .85; }
 .due div { font-size: 20px; font-weight: 600; }
+#todayList { display: flex; flex-direction: column; gap: 4px; }
+#todayList .due { margin-bottom: 4px; }
+.later { display: flex; align-items: baseline; gap: 10px; padding: 4px 2px; color: #8e8e93; font-size: 16px; }
+.later b { flex: 0 0 64px; font-size: 13px; font-weight: 600; text-transform: capitalize; }
+.later span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .panel { display: flex; flex-direction: column; gap: 12px; min-height: 0; }
 .panel h3 { margin: 4px 0 0; font-size: 13px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-2); }
 .ev { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--hair); }
@@ -404,14 +409,21 @@ function renderEvents() {
   var t = today(), box = $("agenda"); box.innerHTML = "";
   events = events.filter(function (ev) { return nextDate(ev, t); }); save("events", events);
   var list = events.map(function (ev) { return { ev: ev, d: nextDate(ev, t) }; }).sort(function (a, b) { return a.d - b.d; });
-  // À l'écran : seulement les rappels du jour, en couleur.
+  // À l'écran : ceux du jour en orange, les suivants en gris.
   var due = $("todayList"); due.innerHTML = "";
   var todays = list.filter(function (x) { return x.d - t === 0; });
   if (todays.length) {
     var card = el("div", "due"); card.appendChild(el("small", null, "Aujourd'hui"));
     todays.forEach(function (x) { card.appendChild(el("div", null, x.ev.text)); });
     due.appendChild(card);
-  } else due.appendChild(el("div", "hint", "Rien de prévu aujourd'hui."));
+  }
+  list.filter(function (x) { return x.d - t > 0; }).slice(0, 4).forEach(function (x) {
+    var diff = Math.round((x.d - t) / 864e5), row = el("div", "later");
+    row.appendChild(el("b", null, diff === 1 ? "Demain" : x.d.toLocaleDateString("fr-FR", { weekday: "short", day: "numeric" }).replace(".", "")));
+    row.appendChild(el("span", null, x.ev.text));
+    due.appendChild(row);
+  });
+  if (!list.length) due.appendChild(el("div", "hint", "Aucun rappel pour l'instant."));
   if (!list.length) box.appendChild(el("div", "hint", "Aucun rappel pour l'instant."));
   list.forEach(function (x) {
     var diff = Math.round((x.d - t) / 864e5);
