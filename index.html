@@ -50,8 +50,8 @@ button { cursor: pointer; }
 .app {
   position: relative; height: 100%; display: grid; gap: 16px;
   grid-template-columns: 330px 1fr 300px;
-  grid-template-rows: auto auto 1fr;
-  grid-template-areas: "clock . ." "weather . list" "agenda . list";
+  grid-template-rows: auto 1fr;
+  grid-template-areas: "clock . weather" "agenda . list";
   padding: max(22px, env(safe-area-inset-top)) max(22px, env(safe-area-inset-right)) max(22px, env(safe-area-inset-bottom)) max(22px, env(safe-area-inset-left));
 }
 @media (orientation: portrait) {
@@ -91,7 +91,11 @@ button { cursor: pointer; }
 .now .temp { font-size: 52px; font-weight: 300; line-height: 1; letter-spacing: -.03em; }
 .now .lbl { color: var(--ink-2); font-size: 15px; }
 .city { margin-left: auto; align-self: flex-start; background: none; border: 0; padding: 0; color: var(--blue); font-size: 15px; font-weight: 500; }
-.days { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; text-align: center; }
+/* 7 jours qui défilent au doigt : 3 visibles, le 4e dépasse pour inviter à glisser */
+.days { display: grid; grid-auto-flow: column; grid-auto-columns: calc((100% - 24px) / 3.25); gap: 8px; text-align: center;
+  overflow-x: auto; -webkit-overflow-scrolling: touch; scroll-snap-type: x mandatory; scrollbar-width: none; margin-right: -20px; padding-right: 20px; }
+.days::-webkit-scrollbar { display: none; }
+.days > div { scroll-snap-align: start; }
 .days > div { background: rgba(255, 255, 255, .55); border-radius: 16px; padding: 8px 4px; font-size: 14px; }
 .days .d { color: var(--ink-2); font-weight: 600; text-transform: capitalize; }
 .days b { display: block; font-size: 26px; font-weight: 400; line-height: 1.3; }
@@ -243,14 +247,14 @@ function wmo(c) { for (var i = 0; i < WMO.length; i++) if (c <= WMO[i][0]) retur
 function weather() {
   $("city").textContent = place.name;
   var u = "https://api.open-meteo.com/v1/forecast?latitude=" + place.lat + "&longitude=" + place.lon +
-    "&current=temperature_2m,weather_code,wind_speed_10m&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=auto&forecast_days=4";
+    "&current=temperature_2m,weather_code,wind_speed_10m&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=auto&forecast_days=8";
   fetch(u).then(function (r) { return r.json(); }).then(function (d) {
     var w = wmo(d.current.weather_code);
     $("wIco").textContent = w[1];
     $("wTemp").textContent = Math.round(d.current.temperature_2m) + "°";
     $("wLbl").textContent = w[2] + " · vent " + Math.round(d.current.wind_speed_10m) + " km/h";
     var days = $("days"); days.innerHTML = "";
-    for (var i = 1; i < 4; i++) {
+    for (var i = 1; i < 8; i++) {
       var c = el("div");
       c.appendChild(el("div", "d", parseYmd(d.daily.time[i]).toLocaleDateString("fr-FR", { weekday: "short" }).replace(".", "")));
       c.appendChild(el("b", null, wmo(d.daily.weather_code[i])[1]));
@@ -277,16 +281,31 @@ $("city").onclick = function () {
   };
 };
 weather(); setInterval(weather, 30 * 60000);
+// Après un glissement, revient sur les prochains jours au bout de 30 s.
+var daysTimer;
+$("days").addEventListener("scroll", function () {
+  clearTimeout(daysTimer);
+  daysTimer = setTimeout(function () { $("days").scrollTo({ left: 0, behavior: "smooth" }); }, 30000);
+});
 
-/* ---------- Courses ---------- */
+/* ---------- Courses (partagées via Google Apps Script, sinon gardées sur l'iPad) ---------- */
+var SHOP_URL = "https://script.google.com/macros/s/AKfycbyiZzRkPI9UOSMAoqWyqQ-3yWl0qLpi1VDFxWph-NlUJiMA_LxV6XN2Q1tBQTxOE8sHJw/exec";  // adresse /exec du script Google « Courses »
 var items = load("items", []);
+// Envoie l'action au script et affiche la liste qu'il renvoie (celle de Siri et du téléphone comprise).
+function shop(params) {
+  if (!SHOP_URL) return;
+  fetch(SHOP_URL + "?" + (params || ""))
+    .then(function (r) { return r.json(); })
+    .then(function (list) { items = list; save("items", items); renderItems(); })
+    .catch(function () {});
+}
 function renderItems() {
   var ul = $("items"); ul.innerHTML = "";
   if (!items.length) ul.appendChild(el("li", "hint", "Rien à acheter pour l'instant."));
   // Les articles cochés descendent en bas de la liste.
   items.filter(function (i) { return !i.done; }).concat(items.filter(function (i) { return i.done; })).forEach(function (it) {
     var li = el("li", it.done ? "done" : ""); li.appendChild(el("div", "tick")); li.appendChild(el("span", null, it.text));
-    li.onclick = function () { it.done = !it.done; save("items", items); renderItems(); };
+    li.onclick = function () { it.done = !it.done; save("items", items); renderItems(); if (it.id) shop("toggle=" + encodeURIComponent(it.id)); };
     ul.appendChild(li);
   });
   var left = items.filter(function (i) { return !i.done; }).length;
@@ -296,9 +315,11 @@ function renderItems() {
 $("itemForm").onsubmit = function (e) {
   e.preventDefault(); var t = $("itemText").value.trim(); if (!t) return;
   items.push({ text: t, done: false }); save("items", items); $("itemText").value = ""; renderItems();
+  shop("add=" + encodeURIComponent(t));
 };
-$("clearDone").onclick = function () { items = items.filter(function (i) { return !i.done; }); save("items", items); renderItems(); };
+$("clearDone").onclick = function () { items = items.filter(function (i) { return !i.done; }); save("items", items); renderItems(); shop("clear=1"); };
 renderItems();
+shop(); setInterval(shop, 60000); // récupère ce qui a été ajouté par Siri ou le téléphone
 
 /* ---------- Rappels ---------- */
 var events = load("events", []);
