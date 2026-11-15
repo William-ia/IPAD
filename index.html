@@ -162,6 +162,16 @@ select.field { padding-right: 8px; }
   border-radius: 999px; padding: 10px 20px; font-size: 15px; font-weight: 500; text-align: center; box-shadow: 0 6px 20px rgba(0,0,0,.15); }
 @media (orientation: portrait) { .pill { bottom: calc(44% + 40px); } }
 @media (max-width: 600px) { .pill { bottom: max(16px, env(safe-area-inset-bottom)); } }
+/* Téléphone : heure compacte, puis ce qui sert en magasin (courses) avant le reste */
+@media (max-width: 600px) {
+  .app { gap: 12px; grid-template-areas: "clock" "list" "agenda" "weather"; }
+  .clock { justify-self: stretch; flex-direction: row; flex-wrap: wrap; align-items: baseline; column-gap: 12px; padding: 12px 20px; }
+  .clock .time { font-size: 46px; }
+  .clock .date { font-size: 16px; }
+  .list, .agenda { align-self: stretch; max-height: none; overflow: visible; }
+  .items li { padding: 13px 0; font-size: 18px; }
+  .pill { display: none; }
+}
 @media (prefers-reduced-motion: reduce) { .bg img { transition: none; } .bg img.on { -webkit-animation: none; animation: none; } }
 </style>
 </head>
@@ -297,13 +307,31 @@ $("days").addEventListener("scroll", function () {
 /* ---------- Courses (partagées via Google Apps Script, sinon gardées sur l'iPad) ---------- */
 var SHOP_URL = "https://script.google.com/macros/s/AKfycbyiZzRkPI9UOSMAoqWyqQ-3yWl0qLpi1VDFxWph-NlUJiMA_LxV6XN2Q1tBQTxOE8sHJw/exec";  // adresse /exec du script Google « Courses »
 var items = load("items", []);
-// Envoie l'action au script et affiche la liste qu'il renvoie (celle de Siri et du téléphone comprise).
+// Envoie l'action au script, puis relit la liste (celle de Siri et du téléphone comprise).
+// Une réponse arrivée pendant d'autres actions est périmée : on ne l'affiche pas, sinon un article
+// coché juste après se décocherait. On relit une fois que toutes les actions sont enregistrées.
+var pending = 0, gen = 0;
 function shop(params) {
   if (!SHOP_URL) return;
+  var mine = params ? ++gen : gen;
+  if (params) pending++;
   fetch(SHOP_URL + "?" + (params || ""))
     .then(function (r) { return r.json(); })
-    .then(function (list) { items = list; save("items", items); renderItems(); })
-    .catch(function () {});
+    .then(function (list) {
+      if (params) { if (--pending === 0) shop(); return; }
+      if (mine !== gen || pending) return;
+      // Ancien script : juste la liste de courses. Nouveau : { courses, rappels }.
+      items = Array.isArray(list) ? list : list.courses; save("items", items); renderItems();
+      if (!list.rappels) return;
+      // Rappels créés sur l'iPad avant le partage : on les envoie une fois en ligne.
+      var local = events.filter(function (ev) { return !ev.id && !ev.sent; });
+      if (local.length) {
+        local.forEach(function (ev) { ev.sent = true; shop("radd=" + encodeURIComponent(ev.text) + "&date=" + ev.date + "&every=" + (ev.every || 0)); });
+        save("events", events);
+        return;
+      }
+      events = list.rappels; save("events", events); renderEvents();
+    }, function () { if (params && --pending === 0) shop(); });
 }
 function renderItems() {
   var ul = $("items"); ul.innerHTML = "";
@@ -393,14 +421,18 @@ function renderEvents() {
     if (x.ev.every) what.appendChild(el("div", "rep", x.ev.every === 1 ? "Tous les jours" : x.ev.every === 7 ? "Chaque semaine" : "Toutes les 2 semaines"));
     row.appendChild(what);
     var del = el("button", "x", "×"); del.setAttribute("aria-label", "Supprimer le rappel");
-    del.onclick = function () { events.splice(events.indexOf(x.ev), 1); save("events", events); renderEvents(); };
+    del.onclick = function () {
+      events.splice(events.indexOf(x.ev), 1); save("events", events); renderEvents();
+      if (x.ev.id) shop("rdel=" + encodeURIComponent(x.ev.id));
+    };
     row.appendChild(del); box.appendChild(row);
   });
 }
 $("evDate").value = ymd(today());
 $("evForm").onsubmit = function (e) {
   e.preventDefault(); var t = $("evText").value.trim(); if (!t || !$("evDate").value) return;
-  events.push({ text: t, date: $("evDate").value, every: +$("evRep").value }); save("events", events);
+  events.push({ text: t, date: $("evDate").value, every: +$("evRep").value, sent: !!SHOP_URL }); save("events", events);
+  shop("radd=" + encodeURIComponent(t) + "&date=" + $("evDate").value + "&every=" + $("evRep").value);
   $("evText").value = ""; renderEvents(); togglePanel(false);
 };
 // Le panneau se referme seul après 2 min pour que l'écran reste épuré.
