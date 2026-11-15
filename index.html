@@ -5,8 +5,12 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Maison">
-<title>Tableau Maison</title>
+<meta name="apple-mobile-web-app-title" content="My Home">
+<title>My Home</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="icon-192.png">
+<meta name="theme-color" content="#0a4a8c">
 <style>
 /* Layout: full-screen photo behind; frosted-glass cards float on the edges, the centre stays clear for the photo */
 :root {
@@ -242,6 +246,7 @@ select.field { padding-right: 8px; }
 
 <script>
 "use strict";
+if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(function () {});
 /* ---------- Réglages Google Drive (voir les explications) ---------- */
 var DRIVE_FOLDER_ID = "1oDg4Igm6kSV_6kCZL4uiwGQBLRfZj0WS";   // l'identifiant du dossier « Cadre photo »
 var DRIVE_API_KEY = "AIzaSyDpIErxLrooUVoeN9QkOAa5DdMmRtKlLog";   // la clé API Google, limitée à ce site et à Drive

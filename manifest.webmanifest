@@ -1,0 +1,16 @@
+{
+  "name": "My Home",
+  "short_name": "My Home",
+  "description": "Météo, photos, courses et rappels de la maison",
+  "lang": "fr",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#062a5e",
+  "theme_color": "#0a4a8c",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
