@@ -326,22 +326,36 @@ function addItem() {
 }
 $("itemForm").onsubmit = function (e) { e.preventDefault(); addItem(); };
 // Dictée : « carotte ajouter » ajoute l'article sans toucher le +.
-$("itemText").addEventListener("input", function () {
-  var m = this.value.match(/^(.*?)[\s,.]*\bajoute(?:r|z)?[\s.!]*$/i);
-  if (m && m[1].trim()) { this.value = m[1]; addItem(); }
-});
+// La dictée de l'iPad ne prévient pas toujours la page : on regarde aussi le champ deux fois par seconde.
+// La dictée écrit « ajouter » de bien des façons : ajoute, ajouté, ajoutée(s), ajoutez…
+var SAY_ADD = /^(.*?)[\s,.]*\bajout(?:e|er|ez|é|ée|és|ées|ait|ais)?[\s.!]*$/i;
+function checkSaidAdd() {
+  var m = $("itemText").value.match(SAY_ADD);
+  if (m && m[1].trim()) { $("itemText").value = m[1]; addItem(); }
+}
+$("itemText").addEventListener("input", checkSaidAdd);
+setInterval(function () { if (document.activeElement === $("itemText")) checkSaidAdd(); }, 500);
 // Bouton micro : reconnaissance vocale de Safari si elle est permise, sinon ouvre le clavier (et son micro).
+// Safari sur iPad écoute sans fin : on s'arrête après 1 s de silence ou dès qu'on entend « ajouter ».
 var Speech = window.SpeechRecognition || window.webkitSpeechRecognition, rec = null;
 $("mic").onclick = function () {
   if (rec) { rec.stop(); return; }
   if (!Speech) { $("itemText").focus(); return; }
-  rec = new Speech(); rec.lang = "fr-FR"; rec.interimResults = false; rec.maxAlternatives = 1;
+  var heard = "", quiet;
+  rec = new Speech(); rec.lang = "fr-FR"; rec.interimResults = true; rec.maxAlternatives = 1;
   rec.onresult = function (e) {
-    $("itemText").value = e.results[0][0].transcript.replace(/[\s,.]*\bajoute(?:r|z)?[\s.!]*$/i, "");
-    addItem();
+    heard = ""; for (var i = 0; i < e.results.length; i++) heard += e.results[i][0].transcript;
+    $("itemText").value = heard;
+    clearTimeout(quiet);
+    if (SAY_ADD.test(heard) || e.results[e.results.length - 1].isFinal) rec.stop();
+    else quiet = setTimeout(function () { if (rec) rec.stop(); }, 1000);
   };
   rec.onerror = function (e) { if (e.error === "not-allowed" || e.error === "service-not-allowed") { Speech = null; $("itemText").focus(); } };
-  rec.onend = function () { rec = null; $("mic").classList.remove("on"); };
+  rec.onend = function () {
+    clearTimeout(quiet); rec = null; $("mic").classList.remove("on");
+    var m = heard.match(SAY_ADD); $("itemText").value = m ? m[1] : heard;
+    addItem();
+  };
   $("mic").classList.add("on");
   try { rec.start(); } catch (err) { rec = null; $("mic").classList.remove("on"); $("itemText").focus(); }
 };
