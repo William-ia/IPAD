@@ -43,8 +43,6 @@ button { cursor: pointer; }
 .bg img.on { opacity: 1; -webkit-animation: drift 14s ease-out both; animation: drift 14s ease-out both; }
 @-webkit-keyframes drift { from { -webkit-transform: scale(1.08); } to { -webkit-transform: scale(1); } }
 @keyframes drift { from { transform: scale(1.08); } to { transform: scale(1); } }
-/* léger voile en haut à gauche pour que l'heure reste lisible sur n'importe quelle photo */
-.bg::after { content: ""; position: absolute; inset: 0; background: linear-gradient(160deg, rgba(0,0,0,.38) 0, rgba(0,0,0,0) 38%); }
 
 /* ---------- Grille ---------- */
 .app {
@@ -79,9 +77,10 @@ button { cursor: pointer; }
 .hint { color: var(--ink-2); font-size: 15px; padding: 6px 0; }
 
 /* ---------- Heure ---------- */
-.clock { grid-area: clock; color: #fff; text-shadow: 0 2px 16px rgba(0,0,0,.25); }
-.clock .time { font-size: 92px; font-weight: 200; line-height: .95; letter-spacing: -.04em; font-variant-numeric: tabular-nums; }
-.clock .date { font-size: 21px; font-weight: 500; opacity: .92; padding-left: 4px; }
+/* Dans une carte de verre comme la météo : lisible sur n'importe quelle photo */
+.clock { grid-area: clock; align-self: start; justify-self: start; gap: 2px; padding: 14px 24px 16px; }
+.clock .time { font-size: 84px; font-weight: 300; line-height: 1; letter-spacing: -.04em; font-variant-numeric: tabular-nums; }
+.clock .date { font-size: 20px; font-weight: 600; color: var(--ink-2); padding-left: 3px; }
 .clock .date::first-letter { text-transform: uppercase; }
 
 /* ---------- Météo ---------- */
@@ -170,7 +169,7 @@ select.field { padding-right: 8px; }
 <div class="bg"><img id="imgA" alt=""><img id="imgB" alt=""></div>
 
 <div class="app">
-  <div class="clock">
+  <div class="card clock">
     <div class="time" id="clock">--:--</div>
     <div class="date" id="date"></div>
   </div>
